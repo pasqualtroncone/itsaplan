@@ -1,11 +1,15 @@
+from __future__ import annotations
+
 import json
 import os
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-import httpx
 import pydantic
 import mistralai.workflows as workflows
+
+if TYPE_CHECKING:
+    import httpx
 
 GITHUB_API = "https://api.github.com"
 AUDIT_MODEL = os.environ.get("AUDIT_MODEL", "mistral-large-latest")
@@ -83,6 +87,8 @@ def gh_headers() -> dict[str, str]:
 
 
 async def gh_get(client: httpx.AsyncClient, path: str, params: dict | None = None) -> Any:
+    import httpx
+
     resp = await client.get(f"{GITHUB_API}{path}", params=params, headers=gh_headers(), timeout=30)
     if resp.status_code == 403 and "rate limit" in resp.text.lower():
         raise RuntimeError("GitHub API rate limit exceeded; set GITHUB_TOKEN")
@@ -146,7 +152,7 @@ def build_report(
         lines.append("No new commits since the last reviewed SHA. Nothing to audit.")
         return "\n".join(lines)
     for a in audits:
-        icon = {"high": "\ud83d\udd34", "medium": "\ud83d\udfe0", "low": "\ud83d\udfe1", "info": "\u26aa"}.get(a.risk, "\u26aa")
+        icon = {"high": "\U0001f534", "medium": "\U0001f7e0", "low": "\U0001f7e1", "info": "\u26aa"}.get(a.risk, "\u26aa")
         lines.append(f"## {icon} `{a.short}` {a.message.splitlines()[0]}")
         lines.append(f"- risk: **{a.risk}** · verdict: **{a.verdict}** · by {a.author} on {a.date[:10]}")
         if a.pr:
@@ -169,6 +175,10 @@ def build_report(
 
 @workflows.activity()
 async def load_state(owner: str, repo: str, branch: str, path: str) -> str | None:
+    import base64
+
+    import httpx
+
     async with httpx.AsyncClient() as client:
         try:
             data = await gh_get(
@@ -178,8 +188,6 @@ async def load_state(owner: str, repo: str, branch: str, path: str) -> str | Non
             if err.response.status_code == 404:
                 return None
             raise
-        import base64
-
         content = json.loads(base64.b64decode(data["content"]).decode())
         return content.get("last_reviewed_sha")
 
@@ -188,6 +196,8 @@ async def load_state(owner: str, repo: str, branch: str, path: str) -> str | Non
 async def list_new_commits(
     owner: str, repo: str, branch: str, since_sha: str | None, max_commits: int
 ) -> tuple[list[dict], str]:
+    import httpx
+
     async with httpx.AsyncClient() as client:
         page = 1
         all_commits: list[dict] = []
@@ -220,6 +230,8 @@ async def list_new_commits(
 
 @workflows.activity()
 async def fetch_commit_detail(owner: str, repo: str, sha: str) -> dict:
+    import httpx
+
     async with httpx.AsyncClient() as client:
         detail = await gh_get(client, f"/repos/{owner}/{repo}/commits/{sha}")
         files = [
@@ -311,6 +323,8 @@ async def save_state(
     owner: str, repo: str, branch: str, path: str, head_sha: str, report: str
 ) -> bool:
     import base64
+
+    import httpx
 
     async with httpx.AsyncClient() as client:
         existing_sha = None
