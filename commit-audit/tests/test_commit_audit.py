@@ -42,6 +42,15 @@ def test_commits_between_without_since_takes_max():
     assert [c["sha"] for c in out] == ["b", "c"]
 
 
+def test_commits_between_filters_by_date():
+    commits = [
+        {"sha": "new", "commit": {"author": {"date": "2026-11-10T05:00:00Z"}}},
+        {"sha": "old", "commit": {"author": {"date": "2026-11-09T05:00:00Z"}}},
+    ]
+    out = commits_between(commits, None, 10, min_date="2026-11-10T00:00:00+00:00")
+    assert [c["sha"] for c in out] == ["new"]
+
+
 def test_parse_audit_json_plain():
     parsed = parse_audit_json('{"risk": "low", "findings": []}')
     assert parsed["risk"] == "low"
