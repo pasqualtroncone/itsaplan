@@ -1,4 +1,4 @@
 {
-  "last_reviewed_sha": "af10353f282a740a87bac6b00f88f0c91e3da4b7",
-  "last_report": "Initial state: head of croffasia/itsaplan@main reviewed manually on 2026-11-10 (v1.10.0..af10353f window, no security findings)."
+  "last_reviewed_sha": null,
+  "last_report": "State disabled: hourly runs use the since_hours time window until GITHUB_TOKEN is bound."
 }
