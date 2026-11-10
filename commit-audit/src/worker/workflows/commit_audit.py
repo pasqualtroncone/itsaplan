@@ -16,6 +16,9 @@ AUDIT_MODEL = os.environ.get("AUDIT_MODEL", "mistral-large-latest")
 MAX_DIFF_CHARS = 60_000
 MAX_FILE_PATCH_CHARS = 4_000
 STATE_PATH = "commit-audit/state.json"
+STATE_OWNER = os.environ.get("STATE_OWNER", "pasqualtroncone")
+STATE_REPO = os.environ.get("STATE_REPO", "itsaplan")
+STATE_BRANCH = os.environ.get("STATE_BRANCH", "audit-workflow")
 
 AUDIT_SYSTEM_PROMPT = """You are a security and correctness reviewer for commits landing in the main branch of a production, self-hosted issue tracker (TypeScript, Bun, Elysia API + Next.js web + PostgreSQL).
 
@@ -368,7 +371,7 @@ class CommitAuditWorkflow:
     @workflows.workflow.entrypoint
     async def run(self, input: AuditInput) -> AuditOutput:
         since = input.since_sha or await load_state(
-            input.owner, input.repo, input.branch, STATE_PATH
+            STATE_OWNER, STATE_REPO, STATE_BRANCH, STATE_PATH
         )
         commits, head = await list_new_commits(
             input.owner, input.repo, input.branch, since, input.max_commits
@@ -383,7 +386,7 @@ class CommitAuditWorkflow:
         state_saved = False
         if head:
             state_saved = await save_state(
-                input.owner, input.repo, input.branch, STATE_PATH, head, report
+                STATE_OWNER, STATE_REPO, STATE_BRANCH, STATE_PATH, head, report
             )
         high = sum(1 for a in audits for f in a.findings if f.severity == "high")
         return AuditOutput(
