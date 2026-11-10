@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 import pydantic
@@ -45,6 +46,7 @@ class AuditInput(pydantic.BaseModel):
     repo: str = "itsaplan"
     branch: str = "main"
     since_sha: str | None = None
+    since_hours: float = 2.0
     max_commits: int = 10
 
 
@@ -116,12 +118,14 @@ def truncate_patch(patch: str | None, limit: int = MAX_FILE_PATCH_CHARS) -> str:
 
 
 def commits_between(
-    commits: list[dict], since_sha: str | None, max_commits: int
+    commits: list[dict], since_sha: str | None, max_commits: int, min_date: str | None = None
 ) -> list[dict]:
     out: list[dict] = []
     for c in commits:
         if since_sha and c["sha"] == since_sha:
             break
+        if min_date and c["commit"]["author"]["date"] < min_date:
+            continue
         out.append(c)
         if len(out) >= max_commits:
             break
@@ -197,7 +201,7 @@ async def load_state(owner: str, repo: str, branch: str, path: str) -> str | Non
 
 @workflows.activity()
 async def list_new_commits(
-    owner: str, repo: str, branch: str, since_sha: str | None, max_commits: int
+    owner: str, repo: str, branch: str, since_sha: str | None, max_commits: int, min_date: str | None = None
 ) -> tuple[list[dict], str]:
     import httpx
 
@@ -217,7 +221,7 @@ async def list_new_commits(
                 break
             page += 1
         head = all_commits[0]["sha"] if all_commits else ""
-        selected = commits_between(all_commits, since_sha, max_commits)
+        selected = commits_between(all_commits, since_sha, max_commits, min_date)
         slim = [
             {
                 "sha": c["sha"],
@@ -373,8 +377,11 @@ class CommitAuditWorkflow:
         since = input.since_sha or await load_state(
             STATE_OWNER, STATE_REPO, STATE_BRANCH, STATE_PATH
         )
+        min_date = None
+        if not since and input.since_hours:
+            min_date = (datetime.now(timezone.utc) - timedelta(hours=input.since_hours)).isoformat()
         commits, head = await list_new_commits(
-            input.owner, input.repo, input.branch, since, input.max_commits
+            input.owner, input.repo, input.branch, since, input.max_commits, min_date
         )
         audits: list[CommitAudit] = []
         for c in commits:
@@ -382,7 +389,8 @@ class CommitAuditWorkflow:
             audits.append(
                 await audit_commit(AUDIT_MODEL, input.owner, input.repo, c, detail)
             )
-        report = build_report(input.owner, input.repo, input.branch, audits, head, since)
+        window = since or (f"last {input.since_hours:g}h ({min_date})" if min_date else None)
+        report = build_report(input.owner, input.repo, input.branch, audits, head, window)
         state_saved = False
         if head:
             state_saved = await save_state(
