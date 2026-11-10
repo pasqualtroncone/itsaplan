@@ -280,7 +280,7 @@ async def fetch_commit_detail(owner: str, repo: str, sha: str) -> dict:
 async def audit_commit(
     model: str, owner: str, repo: str, commit: dict, detail: dict
 ) -> CommitAudit:
-    from mistralai import Mistral
+    from mistralai.workflows.plugins.mistralai import get_mistral_client
 
     user_msg = (
         f"Repository: {owner}/{repo}\n"
@@ -291,7 +291,7 @@ async def audit_commit(
         f"Diff:\n{detail['diff']}\n\n"
         f"Linked PR info: {json.dumps(detail['pr']) if detail['pr'] else 'none (direct push)'}\n"
     )
-    client = Mistral()
+    client = get_mistral_client()
     response = await client.chat.complete_async(
         model=model,
         messages=[
