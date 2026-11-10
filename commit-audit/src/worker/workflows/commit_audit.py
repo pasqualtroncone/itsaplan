@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import os
 import re
-from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING, Any
 
 import pydantic
@@ -178,6 +177,13 @@ def build_report(
             )
         lines.append("")
     return "\n".join(lines)
+
+
+@workflows.activity()
+async def window_start_iso(hours: float) -> str:
+    from datetime import datetime, timedelta, timezone
+
+    return (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
 
 
 @workflows.activity()
@@ -379,7 +385,7 @@ class CommitAuditWorkflow:
         )
         min_date = None
         if not since and input.since_hours:
-            min_date = (datetime.now(timezone.utc) - timedelta(hours=input.since_hours)).isoformat()
+            min_date = await window_start_iso(input.since_hours)
         commits, head = await list_new_commits(
             input.owner, input.repo, input.branch, since, input.max_commits, min_date
         )
